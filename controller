@@ -1,0 +1,32 @@
+#!/bin/bash
+
+op="$1"
+module="${2:-obliterator_bot.py}"
+pid_file="${module%.*}.pid"
+
+[ -n "$op" ] || { echo "No operation given"; exit 1; }
+
+start() {
+    [ -f "$pid_file" ] && { echo "$pid_file already exists."; exit 1; }
+    python "$module" &
+    status=$?
+    pid=$!
+    [ "$status" -eq 0 ] || { echo "Startup failed"; exit 1; }
+    echo "$pid" > "$pid_file"
+}
+
+stop() {
+    [ -f "$pid_file" ] || { echo "$pid_file does not exist."; exit 1; }
+    kill -9 $(cat $pid_file)
+    rm -f "$pid_file"
+}
+
+restart() {
+    stop
+    start
+}
+
+$op
+
+
+
