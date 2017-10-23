@@ -16,10 +16,6 @@ import shlex
 current_milli_time = lambda : int(round(time.time() * 1000))
 random_string = lambda N : ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
-updater = Updater(token='436570592:AAHHYNY9i0H1XGkpjAJxjXVMrP43OmnoYCk')
-
-dispatcher = updater.dispatcher
-
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 
 class CommandFailure(TelegramError):
@@ -30,17 +26,32 @@ def get_arg(args, index=0):
     if len(args) > index:
         return args[index]
     return None
-
-def _parse_args(args):
-    arg_str = " ".join(args)
-    shell_args = shlex.split(arg_str)
     
+def rchop(string, sub):
+    if string.endswith(sub):
+        return string[:-len(sub)]
+
+def lchop(string, sub):
+    if string.startswith(sub):
+        return string[len(sub):]
+
+ARGUMENT_PREFIX = "-"
+ARGUMENT_EQUATOR = "="
+        
+def _parse_args(args):
+    arg_str = " ".join(args).encode('utf-8')
+    shell_args = shlex.split(arg_str)
+
     labeled = {}
     unlabeled = []
     for s in shell_args:
-        key_split = s.split("=")
-        if len(key_split) == 2:
-            labeled[key_split[0].strip()] = key_split[1].strip()
+        if s.startswith(ARGUMENT_PREFIX):
+            arg_split = s.split(ARGUMENT_EQUATOR)
+            key = lchop(arg_split[0].strip(), ARGUMENT_PREFIX)
+            if len(arg_split) == 2:
+                labeled[key] = arg_split[1].strip()
+            else:
+                labeled[key] = True
         else:
             unlabeled.append(s)
     
@@ -91,7 +102,6 @@ def add_permissions(username, permissions):
     if not username in data["access"]:
         data["access"][username] = { "user_id" : None, "permissions" : [] }
     
-    
     user_permissions = data["access"][username]["permissions"]
     added = [ p for p in permissions if not p in user_permissions ]
         
@@ -139,8 +149,10 @@ def authorize(bot, update, args):
     labeled, unlabeled = _parse_args(args)
     require_permissions(user=update.message.from_user, required=["admin"], password=labeled.get("master_password", None))
     
-    username = get_arg(unlabeled)
-    permissions = [ p.encode('utf-8') for p in unlabeled[1:] ]
+    username = labeled.get("user", None)
+    channel = labeled.get("channel", False)
+    
+    permissions = [ p for p in unlabeled ]
     
     if not username:
         send_message(bot, update, "No username given")
@@ -231,6 +243,11 @@ def _generate_master_password():
         pwf.write(pw + "\n")
     master_password = pw
 
+api_key_file = "obliterator.key"
+def _read_api_key():
+    with open(api_key_file) as akf:
+        return akf.read()
+    
 def error_callback(bot, update, error):
     try:
         raise error
@@ -241,11 +258,14 @@ try:
     data = _read_config()
 except (IOError, ValueError):
     # Default config
-    data = { "time" : str(dt.datetime.now()), "currency": [], "access": {} }
+    data = { "time" : str(dt.datetime.now()), "currency": [], "access": { "channels" : {}, "users": {} } }
 
+api_key = _read_api_key().strip()
 _generate_master_password()
-
 _write_config()
+
+updater = Updater(token=api_key)
+dispatcher = updater.dispatcher
     
 start_handler = CommandHandler('start', start)
 caps_handler = CommandHandler('caps', caps, pass_args=True)
