@@ -1,0 +1,14 @@
+{
+    "access": {
+        "channels": {}, 
+        "users": {}, 
+        "Heppunator": {
+            "user_id": 434195133, 
+            "permissions": [
+                "admin"
+            ]
+        }
+    }, 
+    "currency": [], 
+    "time": "2017-10-23 17:46:40.635000"
+}

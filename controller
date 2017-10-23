@@ -7,7 +7,7 @@ pid_file="${module%.*}.pid"
 [ -n "$op" ] || { echo "No operation given"; exit 1; }
 
 start() {
-    [ -f "$pid_file" ] && { echo "$pid_file already exists."; exit 1; }
+#    [ -f "$pid_file" ] && { echo "$pid_file already exists."; exit 1; }
     python "$module" &
     status=$?
     pid=$!
