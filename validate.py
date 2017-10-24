@@ -1,6 +1,10 @@
 import math
 import validators
+from utils import parse_args, remove_indexes
 from errors import CommandFailure
+
+def equals(value):
+    return lambda v : v == value
 
 def is_empty(value):
     valid, _ = not_empty(value)
@@ -75,15 +79,103 @@ def validate(value, validators):
     return True, None
 
 ISSUE_LIST_TOKEN = "* "
-def validate_parameters(params, schema):
+def validate_parameters(args, label_schema={}, unlabel_schema={}):
+    labeled, unlabeled = parse_args(args)
+    
+    all_issues = []
+    sorted, issues = _sort_unlabeled_params(unlabeled, unlabel_schema)
+    all_issues += issues
+    converted, issues = _validate_labeled_params(labeled, label_schema)
+    all_issues += issues
+    
+    if len(all_issues) > 0:
+        raise CommandFailure("Incorrect usage:\n%s" % "\n".join([ ISSUE_LIST_TOKEN + i for i in all_issues ]))    
+        
+    return dict(converted.items() + sorted.items())
+    
+def _find_flag_pos(params, flag, positions):
+    if positions == None or len(positions) == 0:
+        for i in range(len(params)):
+            p = params[i]
+            if p == flag:
+                return i, i + 1 
+    else:
+        for p in positions:
+            if len(params) > abs(p) and params[p] == flag:
+                return p, p + 1
+    return None, None
+    
+    
+def _sort_unlabeled_params(params=[], schema={}):
     issues = []
     missing_req = []
+    sorted = {}
+    
+    flags = { p:a for p,a in schema.iteritems() if a.get("flag", False) }
+    others = { p:a for p,a in schema.iteritems() if p not in flags }
+    
+    handled = []
+    for flag_param, attrs in flags.iteritems():
+        pos =  attrs.get("position", None)  
+        if pos != None and not isinstance(pos, list):
+            pos = [ pos ]
+        flag_pos, pos = _find_flag_pos(params, flag_param, pos)
+        if flag_pos != None:
+            handled.append(flag_pos)
+        if pos == None or len(params) <= abs(pos):
+            if attrs.get("required", False):
+                missing_req.append(flag_param)
+        else:
+            value = params[pos]                      
+            validators = attrs.get("validators", [])
+            valid, reason = validate(value, validators)
+            if not valid:
+                issues.append("Invalid '%s' value '%s': %s" % (flag_param, value, reason))
+            else:
+                converter = attrs.get("converter", None)
+                sorted[flag_param] = converter(value) if converter else value
+            handled.append(pos)
+
+    params = remove_indexes(params, handled)
+    handled = []
+    for other_param, attrs in others.iteritems():   
+        pos =  attrs.get("position", None)  
+        if pos == None or len(params) <= abs(pos):
+            if attrs.get("required", False):
+                missing_req.append(other_param)
+        else:
+            value = params[pos]                      
+            validators = attrs.get("validators", [])
+            valid, reason = validate(value, validators)
+            if not valid:
+                issues.append("Invalid '%s' value '%s': %s" % (other_param, value, reason))
+            else:
+                converter = attrs.get("converter", None)
+                sorted[other_param] = converter(value) if converter else value
+            handled.append(pos)
+
+    params = remove_indexes(params, handled)
+    if len(missing_req) > 0:
+        issues.append("Missing required values: %s" % ", ".join(missing_req))
+    
+    if len(params) > 0:
+        issues.append("Unexpected values: %s" % ", ".join(params))
+    
+    return sorted, issues
+    
+def _validate_labeled_params(params={}, schema={}):
+    issues = []
+    missing_req = []
+    converted = {}
     for schema_param, attrs in schema.iteritems():
         if schema_param in params:
             validators = attrs.get("validators", [])
             valid, reason = validate(params[schema_param], validators)
             if not valid:
                 issues.append("Invalid '%s' value '%s': %s" % (schema_param, params[schema_param], reason))
+            else:
+                converter = attrs.get("converter", None)
+                converted[schema_param] = converter(params[schema_param]) if converter else params[schema_param]
             missing_dep = []
             for d in attrs.get("depends", []):
                 if not d in params:
@@ -101,7 +193,6 @@ def validate_parameters(params, schema):
             unknown.append(p)
     if len(unknown) > 0:   
         issues.append("Unknown parameters: %s" % ", ".join(unknown))
-        
-    if len(issues) > 0:
-        raise CommandFailure("Incorrect usage:\n%s" % "\n".join([ ISSUE_LIST_TOKEN + i for i in issues ]))    
-        
+    return converted, issues
+    
+    

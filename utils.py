@@ -1,7 +1,7 @@
 import shlex
 import string
 import random
-from validate import validate 
+import json
 from errors import CommandFailure
 
 current_milli_time = lambda : int(round(time.time() * 1000))
@@ -38,7 +38,7 @@ def encode_dict( u_dict, encoding="utf-8" ):
         encoded[key] = val
     return encoded
 
-ARGUMENT_PREFIX = "-"
+ARGUMENT_PREFIX = "!"
 ARGUMENT_EQUATOR = "="    
 def parse_args(args):
     arg_str = " ".join(args).encode('utf-8')
@@ -64,10 +64,20 @@ def is_flag_set(flag, params):
         return False
     return True
     
-def sort_unlabeled_params(params, required=[], optional=[]):
+def sort_unlabeled_params(params, positional=[], required=[], optional=[]):
     sorted = {}
     index = 0
     missing_req = []
+    
+    removed = []
+    for i in range(len(params)):
+        p = params[i]
+        if p in positional and len(params) > i + 1:
+            sorted[p] = params[i + 1]
+            removed += [ p, params[i + 1] ]
+    params = [ p for p in params if p not in removed ]
+            
+    missing_req += [ p for p in positional if p not in sorted ]    
     for r in required:
         if len(params) <= index:
             missing_req.append(r)
@@ -98,3 +108,23 @@ def get_or_init(dict, key, init):
         dict[key] = init
     return dict[key]
         
+def read_json(file):
+    with open(file) as f:
+        return json.load(f, encoding='utf-8', object_hook=encode_dict)
+        
+def image_msg(command, images):
+    if command in images:
+        return "\n%s" % images[command]
+    return ""
+
+    
+def remove_indexes(values, indexes):
+    index_map = { i:values[i] for i in range(len(values)) }
+    for i in indexes:
+        abs_i = i
+        if abs_i < 0:
+            abs_i = len(values) + abs_i
+        if abs_i in index_map:
+            index_map.pop(abs_i)
+    return [ v for _,v in index_map.iteritems() ]        
+    

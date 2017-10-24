@@ -13,7 +13,7 @@ import shlex
 from errors import CommandFailure
 from economy import Economy
 from database import Database
-from utils import rchop, lchop, encode_dict, parse_args, get_or_init, random_string, CommandFailure
+from utils import rchop, lchop, encode_dict, parse_args, get_or_init, random_string, read_json, CommandFailure
     
 
 
@@ -60,7 +60,7 @@ def _use_master_password( password ):
         return True
     return False
         
-def _require_permissions(user, required, password):
+def _require_permissions(user, required, password=None):
     username = user.username
     user_id = user.id
     
@@ -96,7 +96,7 @@ def _add_permissions(username, permissions):
         return "No new permissions to add."
     
 def _remove_permissions(username, permissions):
-    data, table = get_user_access_data(username)
+    data, table = _get_user_access_data(username)
     
     user_permissions = get_or_init(data, "permissions", [])
     removed = [ p for p in permissions if p in user_permissions ]
@@ -123,7 +123,7 @@ def permissions(bot, update, args):
     if not username:
         username = update.message.from_user.username
         
-    permissions = _get_permissions(username, database)
+    permissions = _get_permissions(username)
     if len(permissions) > 0:
         _send_message(bot, update, "User %s has permissions: %s" % (username, ", ".join(permissions)))
     else:
@@ -131,7 +131,7 @@ def permissions(bot, update, args):
   
 def authorize(bot, update, args):
     labeled, unlabeled = parse_args(args)
-    require_permissions(
+    _require_permissions(
         required=[ "admin", "permissions", "permissions:add" ],
         user=update.message.from_user,
         password=labeled.get("master_password", None))
@@ -152,7 +152,7 @@ def authorize(bot, update, args):
     
 def deauthorize(bot, update, args):
     labeled, unlabeled = parse_args(args)
-    require_permissions(
+    _require_permissions(
         required=[ "admin", "permissions", "permissions:remove" ],
         user=update.message.from_user,
         password=labeled.get("master_password", None))
@@ -173,11 +173,6 @@ def deauthorize(bot, update, args):
     
 def unknown(bot, update):
     bot.send_message(chat_id=update.message.chat_id, text="Sorry, I didn't understand that command.")
-
-config_file = ".config"
-def _read_config():
-    with open(config_file) as cf:
-        return json.load(cf, encoding='utf-8', object_hook=encode_dict)
     
 def error_callback(bot, update, error):
     try:
@@ -185,15 +180,20 @@ def error_callback(bot, update, error):
     except CommandFailure as f:
         _send_message(bot, update, f.message)
 
-config = _read_config()
+config_file = ".config"
+images_file = "images.data"
+
+config = read_json(config_file)
 database = Database(config["database"])
+
+images = read_json(images_file)
 
 _generate_master_password()
 
 updater = Updater(token=config["api_token"])
 dispatcher = updater.dispatcher
 
-module_config = { "database" : database }
+module_config = { "database" : database, "images" : images }
 module_callbacks = { "respond" : _send_message, "permissions" : _require_permissions }
 
 modules = [ Economy(module_config, module_callbacks) ]
