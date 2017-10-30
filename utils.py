@@ -128,3 +128,7 @@ def remove_indexes(values, indexes):
             index_map.pop(abs_i)
     return [ v for _,v in index_map.iteritems() ]        
     
+def add_to_list_map(list_map, key, value):
+    if not key in list_map:
+        list_map[key] = []
+    list_map[key].append(value)
