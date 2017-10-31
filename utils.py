@@ -132,3 +132,14 @@ def add_to_list_map(list_map, key, value):
     if not key in list_map:
         list_map[key] = []
     list_map[key].append(value)
+
+def get_master_pass(map):
+    return get_single("master_password", map, None)
+    
+def get_single(key, map, default=None):
+    values = map.get(key, [])
+    if len(values) == 1:
+        return values[0]
+    if len(values) == 0:
+        return default
+    raise CommandFailure("Expected single value for '%s', got %s" % (key, len(values)))

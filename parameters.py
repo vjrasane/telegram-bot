@@ -1,6 +1,8 @@
 import shlex
+from enum import Enum 
 from utils import lchop, add_to_list_map, CommandFailure
-from validate import validate, is_number
+from validate import validate, is_number, number, positive, boolean, not_empty
+from convert import to_boolean, to_float
 
 def _match_position(index, pos, length):
     return index == pos or index - length == pos
@@ -26,11 +28,20 @@ def _get_argument(input, index, schema_arguments):
         arg = schema_arguments[argument]
         if arg.validate_prefix(is_prefix):
             consumed = []
-            while (arg.arity == "N" or len(consumed) < arg.arity) and index + 1 < len(input):
+            arity = arg.arity
+
+            min_arity = arity[0]
+            max_arity = arity[1]
+            while ((not min_arity or len(consumed) < min_arity) and
+                (not max_arity or len(consumed) < max_arity) and
+                index + 1 < len(input)):
                 index += 1 
                 consumed.append(input[index])
-            return True, consumed, index
-    return False, [], index
+                valid, _ = validate(" ".join(consumed), arg.validators)
+                if valid:
+                    break
+            return True, argument, consumed, index
+    return False, None, [], index
 
 class Seg(object):
     def __init__(self, word):
@@ -68,12 +79,12 @@ def _categorize_inputs(inputs, schema):
     while len(inputs) > index:
         input_word = inputs[index]
         
-        is_argument, values, index = _get_argument(inputs, index, schema.arguments)
+        is_argument, arg, values, index = _get_argument(inputs, index, schema.arguments)
         if is_argument:
-            if len(schema.arguments[input_word].positions) > 0:
-                input_segments.append(ArgSeg(input_word, values))
+            if len(schema.arguments[arg].positions) > 0:
+                input_segments.append(ArgSeg(arg, values))
             else:
-                add_to_list_map(categorized, input_word, values)
+                add_to_list_map(categorized, arg, " ".join(values))
         else:
             input_segments.append(Seg(input_word))
         index += 1
@@ -81,118 +92,132 @@ def _categorize_inputs(inputs, schema):
     _update_positions(input_segments)
     
     tmp = input_segments[:]
-    print [ s.word for s in tmp]
     for seg in reversed(input_segments):
         if isinstance(seg, ArgSeg):
             positions = schema.arguments[seg.word].positions
             if not seg.pos in positions and not seg.rev in positions:
-                print (seg.word, seg.pos, seg.rev, positions)
                 tmp = tmp[:seg.pos] + seg.split() + tmp[seg.pos + 1:]
                 _update_positions(tmp)
-    
+
     for seg in tmp:
-        if isinstance(seg, ArgSeg):
-            add_to_list_map(categorized, seg.word, seg.values)
+        if isinstance(seg, ArgSeg):         
+            add_to_list_map(categorized, seg.word, " ".join(seg.values))
         else:
             is_parameter, key = _get_parameter(tmp, seg.pos, schema.parameters)
             if is_parameter:
-                add_to_list_map(categorized, key, [seg.word])
+                add_to_list_map(categorized, key, seg.word)
             else:
                 remainder.append(seg.word)
                 
     return categorized, remainder
 
-
 def _validate_inputs(inputs, remainder, schema):
     issues = []
 
     missing_req = []
-    converted = {}
-    
+    data = {}
+    non_data = {}
+
     for schema_input in schema.inputs:
+        map = data if schema_input.data else non_data
         if schema_input.name in inputs:
             occurrences = inputs[schema_input.name]
+
             if len(occurrences) == 1:
-                input_values = occurrences[0]
-                
-                for v in input_values:        
-                    valid, reason = validate(v, schema_input.validators)
-                    if not valid:
-                        issues.append("Invalid '%s' value '%s': %s" % (schema_input.name, v, reason))
-                    else:
-                        add_to_list_map(converted, schema_input.name, schema_input.converter(v))
-                        
-                    missing_dep = []
-                    for d in schema_input.depends:
-                        if not d in inputs:
-                            missing_dep.append(d)
-                    if len(missing_dep) > 0:
-                        issues.append("Parameter '%s' requires parameters: %s" % (schema_input.name, ", ".join(missing_dep)))
+                input_value = occurrences[0]
+                valid, reason = validate(input_value, schema_input.validators)
+                if not valid:
+                    issues.append("Invalid '%s' value '%s': %s" % (schema_input.name, input_value, reason))
+                else:
+                    map[schema_input.name] = schema_input.converter(input_value)
             else:
                 issues.append("Parameter '%s' occurred %s times, but was expected once." % (schema_input.name, len(occurrences)))
+            
+            missing_dep = []
+            for d in schema_input.depends:
+                if not d in inputs:
+                    missing_dep.append(d)
+            if len(missing_dep) > 0:
+                issues.append("Parameter '%s' requires parameters: %s" % (schema_input.name, ", ".join(missing_dep)))
         elif schema_input.required:
-            missing_req.append(schema_input.name)
+            missing_req.append(schema_input.usage_name())
                 
     if len(missing_req) > 0:
         issues.append("Missing required parameters: %s" % ", ".join(missing_req))
 
     if len(remainder) > 0:   
         issues.append("Unknown parameters: %s" % ", ".join(remainder))
-    return converted, issues
-
-class Schema():
-    def __init__(self, inputs=[], name=None):
-        self.name = name
-        self.inputs = inputs
-        self.parameters = { p.name: p for p in inputs if isinstance(p, Parameter) }
-        self.arguments = { a.name: a for a in inputs if isinstance(a, Argument) }
+    return data, non_data, issues
     
-def param(name, position, required=True, validators=[], converter=None):
-    return Parameter(name, position, required, validators, converter)
+def param(name, position, required=True, validators=None, converter=None, data=False, depends=None):
+    return Parameter(name, position, required=required, validators=validators, converter=converter, data=data, depends=depends)
     
-def arg(name, positions=[], required=True, validators=[], converter=None, arity=1, prefix="allowed"):
-    return Argument(name, positions, required, validators, converter, arity, prefix)
+def arg(name, position=None, positions=None, required=True, validators=None, converter=None, arity=1, prefix=None, data=False, depends=None):
+    pos = [position] if position else positions
+    return Argument(name, positions=positions, required=required, validators=validators, converter=converter, arity=arity, prefix=prefix, data=data, depends=depends)
 
+def flag(name, positions=None, data=False, prefix=None):
+    return Argument(name, positions, required=False, validators=[flag], converter=to_boolean(True), prefix=prefix, data=data, arity=0)
+
+def pos_num_arg(name, positions=None, required=True, depends=None):
+    return Argument(name, positions, required, validators=[number, positive], data=True, converter=to_float, depends=depends)
+    
 class Input(object):
-    def __init__(self, name, required=True, validators=[], converter=None, depends=[]):
+    def __init__(self, name, required=True, data=False, validators=None, converter=None, depends=None):
         self.name = name
         self.required = required
-        self.validators = validators
+        self.validators = validators or []
         self.converter = converter if converter else lambda v: v
-        self.depends = depends
+        self.depends = depends or []
+        self.data = data
+        
+    def usage_name(self):
+        return self.name
         
 class Parameter(Input):
-    def __init__(self, name, position, required=True, validators=[], converter=None, depends=[]):
-        super(Parameter, self).__init__(name, required, validators, converter, depends)
+    def __init__(self, name, position, required=True, data=False, validators=None, converter=None, depends=None):
+        super(Parameter, self).__init__(name, required=required, data=data, validators=validators, converter=converter, depends=depends)
         self.position = position
+
+class ArgPrefix(Enum):
+    allowed = 1
+    disallowed = 2
+    required = 3
         
 class Argument(Input):
-    def __init__(self, name, positions=[], required=True, validators=[], converter=None, arity=1, prefix="allowed", depends=[]):
-        super(Argument, self).__init__(name, required, validators, converter, depends)
-        self.arity = arity
-        self.positions = positions
-        self.prefix = prefix
-        print self.depends
+    def __init__(self, name, positions=None, required=True, data=False, validators=None, converter=None, arity=None, prefix=None, depends=None):
+        super(Argument, self).__init__(name, required=required, data=data, validators=validators, converter=converter, depends=depends)
+        self.arity = arity or (1,1)
+        if not isinstance(self.arity, tuple):
+            self.arity = (self.arity, self.arity)
+        self.positions = positions or []
+        self.prefix = ArgPrefix[prefix or "required"]
         
     def validate_prefix(self, is_prefix):
-        if self.prefix == "required":
+        if self.prefix == ArgPrefix.required:
             return is_prefix
-        elif self.prefix == "forbidden":
+        elif self.prefix == ArgPrefix.disallowed:
             return not is_prefix
-        return self.prefix == "allowed"
+        return self.prefix == ArgPrefix.allowed
         
-schema = Schema([
-    param("param", position=0),
-    arg("arg", arity=2, positions=[1, -1]),
-    param("p", position=2),
-    ])
+    def usage_name(self):
+        return ARGUMENT_PREFIX + self.name if self.prefix == ArgPrefix.required else self.name 
+        
+global_inputs = [ arg("master_password", required=False, validators=[not_empty] ) ]
+class Schema():
+    def __init__(self, inputs=None, name=None):
+        self.name = name
+        self.inputs = (inputs or []) + global_inputs
+        self.parameters = { p.name: p for p in self.inputs if isinstance(p, Parameter) }
+        self.arguments = { a.name: a for a in self.inputs if isinstance(a, Argument) }
+    
 ISSUE_LIST_TOKEN = "* "
 def parse_inputs(inputs, schema):
     inputs = _format_args(inputs)
     categorized, remainder = _categorize_inputs(inputs, schema)
-    converted, issues = _validate_inputs(categorized, remainder, schema)
+    data, non_data, issues = _validate_inputs(categorized, remainder, schema)
     
     if len(issues) > 0:
         raise CommandFailure("Incorrect usage:\n%s" % "\n".join([ ISSUE_LIST_TOKEN + i for i in issues ]))    
     
-    return converted
+    return data, non_data

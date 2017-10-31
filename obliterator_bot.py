@@ -198,8 +198,9 @@ module_callbacks = { "respond" : _send_message, "permissions" : _require_permiss
 
 modules = [ Economy(module_config, module_callbacks) ]
 for m in modules:
-    for h in m.handlers:
+    for h in m.handlers or []:
         dispatcher.add_handler(h)
+        
 
 main_handlers = [
     CommandHandler('start', start),
@@ -214,7 +215,11 @@ main_handlers = [
 for h in main_handlers:
     dispatcher.add_handler(h)
     
+
+    
 dispatcher.add_error_handler(error_callback)
 updater.start_polling()
+
+# schedule.run_continuously()
 
 

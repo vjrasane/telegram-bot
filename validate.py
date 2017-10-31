@@ -18,9 +18,19 @@ def _any_of(value, validators):
 def _shorter(value, length):
     if len(value) > length:
         return False, "Longer than limit (%s)" % length
-    return True, []  
+    return True, []
+    
+def _enum(value, enum):
+    try:
+        _ = enum[value]
+        return True, None
+    except:
+        return False, "Not a valid %s" % enum.__name__.lower()
 
 # ========= VALIDATORS =========
+
+def enum(e):
+    return lambda v : _enum(v, e)
 
 def equals(value):
     return lambda v : v == value
@@ -104,7 +114,7 @@ def is_empty(value):
     return False
     
 def validate(value, validators):
-    for v in validators:
+    for v in validators or []:
         valid, reason = v(value)
         if not valid:
             return False, reason
