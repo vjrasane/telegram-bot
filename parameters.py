@@ -43,15 +43,17 @@ def _get_argument(input, index, schema_arguments):
             return True, argument, consumed, index
     return False, None, [], index
 
+    
 class Seg(object):
-    def __init__(self, word):
+    def __init__(self, word, certain=False):
         self.word = word
         self.pos = None
+        self.certain = certain
 
 class ArgSeg(Seg):
-    def __init__(self, word, values=[]):
-        super(ArgSeg, self).__init__(word)
-        self.values = values
+    def __init__(self, word, values=None, certain=False):
+        super(ArgSeg, self).__init__(word, certain)
+        self.values = values or []
         
     def split(self):
         return [ Seg(self.word) ] + [ Seg(v) for v in self.values ]
@@ -73,6 +75,31 @@ def _categorize_inputs(inputs, schema):
     categorized = {}
         
     remainder = []
+    
+    segments = [ Seg(i) for i in inputs ]
+    
+    all_certain = True
+    for s in segments:
+        if not s.certain:
+                
+    
+    # 1. annotate and convert input segments
+    # 2. unrestricted arguments consume segments
+    #   a. if no validators -> consume as much as possible:
+    #       - up to max arity
+    #       - up to input length
+    #       - until another argument is reached
+    #   b. if validators -> consume as much as is necessary
+    #       - at least min arity
+    #       - until validated
+    # 3. move unrestricted arguments from segments to categorized
+    # 4. restricted arguments consume segments
+    # 5. in reverse order: check argument positions
+    #   a. if correct, do nothing
+    #   b. if incorrect, expand back to segments and update positions
+    # 6. move remaining segments
+    #   a. to categorized if argument or parameters
+    #   b. otherwise to remainder
     
     index = 0
     input_segments = []
