@@ -14,7 +14,7 @@ def _format_args(args):
     return shell_args
 
 ARGUMENT_PREFIX = "-"
-def remove_prefix(word):
+def _remove_prefix(word):
     if word.startswith(ARGUMENT_PREFIX):
         chopped = lchop(word, ARGUMENT_PREFIX)
         if not is_number(chopped):
@@ -70,18 +70,79 @@ def _get_parameter(segments, index, parameters):
         if _match_position(index, param.position, len(segments)):
             return True, name
     return False, None
-      
+    
+def _is_argument(word, schema_arguments):
+    is_prefix, word = _remove_prefix(word)
+    if word in schema_arguments:
+        arg = schema_arguments[word]
+        return arg.validate_prefix(is_prefix), arg
+    return False, None
+    
+def _check_limits(arg, consumed, index, input, schema_arguments):
+    limiters = []
+    validators = arg.validators
+    min = arg.arity[0]
+    max = arg.arity[1]
+    if index + 1 >= len(input):
+        return False # Reached end of input
+    if max and len(consumed) >= max:
+        return False # Reached max arity limit
+    if len(validators) == 0:
+        is_argument, arg = _is_argument(input[index + 1].word, schema_arguments)
+        if is_argument:
+            return False # Next word is an argument
+    else:
+        valid, _ = validate(" ".join(consumed), validators)
+        if valid and (not min or len(consumed) >= min):
+            return False # Valid input and reached min arity
+    return True # Within limits, continue consuming
+       
+def _consumed_arguments(segments, schema_arguments, checker):
+    index = 0
+    new_segments = []
+    while len(segments) > index:
+        seg = segments[index]
+        
+            is_argument, arg = _is_argument(seg.word, schema_arguments)
+            if not seg.certain  is_argument and checker(arg):
+                    consumed = []
+                    
+                    while _check_limits(arg, consumed, index, input, schema_arguments):
+                        index += 1 
+                        consumed.append(input[index].word)
+                        
+                new_segments.append(ArgSeg(arg, consumed))
+            else:
+                new_segments.append(seg)
+                
+        index + 1
+        
+    return new_segments
+    
 def _categorize_inputs(inputs, schema):  
     categorized = {}
-        
     remainder = []
     
     segments = [ Seg(i) for i in inputs ]
     
-    all_certain = True
-    for s in segments:
-        if not s.certain:
-                
+    new_segments = _consume_arguments(segments, schema.arguments, lambda a : len(a.positions) == 0)
+        
+    # Remove unrestricted arguments and add them to categorized
+    unrestricted = [ s for s in new_segments if instanceof(s, ArgSeg) ]
+    segments = [ s for s in new_segments if not s in unrestricted ]
+    [ add_to_list_map(categorized, s.word, " ".join(s.values)) for s in unrestricted ]
+    
+    segments = _consume_arguments(segments, schema.arguments, lambda a : len(a.positions) > 0)
+    
+    _update_positions(segments)
+    
+    tmp = segments[:]
+    for seg in reversed(segments):
+        if isinstance(seg, ArgSeg):
+            positions = schema.arguments[seg.word].positions
+            if not seg.pos in positions and not seg.rev in positions:
+                tmp = tmp[:seg.pos] + seg.split() + tmp[seg.pos + 1:]
+                _update_positions(tmp)
     
     # 1. annotate and convert input segments
     # 2. unrestricted arguments consume segments

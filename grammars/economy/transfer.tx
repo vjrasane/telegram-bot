@@ -1,0 +1,5 @@
+Transfer:
+    amount=FLOAT currency=ID (('to' target=ID) ('from' source=ID)?)#
+;
+
+
