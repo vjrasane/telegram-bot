@@ -1,0 +1,3 @@
+Currency:
+    currency=ID ( ('-initial' initial=FLOAT)? ('-sign' sign=ID)? )#
+;

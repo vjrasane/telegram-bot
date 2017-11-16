@@ -1,0 +1,2 @@
+
+USER_NAME_LIMIT = 100

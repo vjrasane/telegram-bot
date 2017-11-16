@@ -4,7 +4,19 @@ from utils import rchop, encode_dict
 
 TABLE_SUFFIX = ".tab"
 
-class Table():
+class Group():
+    def __init__(self):
+        pass
+        
+    def exists(self, path):
+        if len(path) == 0:
+            return True
+        if path[0] in self.tables:
+            return self.tables[path[0]].exists(path[1:])
+        return False
+        
+
+class Table(Group):
     def __init__(self, name, parent=None):
         self.name = name if name.endswith(TABLE_SUFFIX) else name + TABLE_SUFFIX
         self.parent = parent
@@ -23,10 +35,14 @@ class Table():
     def drop(self):
         os.remove(self.name)
     
-    def __str__(self):
-        return self.name
+    def get_value(self, path, field):
+        if len(path) > 0:
+            return None
+        value = self.read().get(field, None)
+        print (path, field, value)
+        return value
 
-class Database():
+class Database(Group):
     def __init__(self, name, parent=None):
         self.name = name
         self.parent = parent
@@ -69,3 +85,8 @@ class Database():
                 self.tables[t].drop()
             self.tables.clear()
             os.rmdir(self.name)
+            
+    def get_value(self, path, field):
+        if len(path) == 0 or not path[0] in self.tables:
+            return None
+        return self.tables[path[0]].get_value(path[1:], field)

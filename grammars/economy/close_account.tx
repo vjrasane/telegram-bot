@@ -1,0 +1,3 @@
+Close:
+    currency=ID ("-user" user=ID)?
+;

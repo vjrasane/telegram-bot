@@ -1,0 +1,3 @@
+Allowance:
+    currency=ID amount=FLOAT ("-type" type=ID)?
+;

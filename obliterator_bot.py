@@ -10,12 +10,13 @@ import logging
 
 import time
 import shlex
-from errors import CommandFailure
-from economy import Economy
-from database import Database
-from utils import rchop, lchop, encode_dict, parse_args, get_or_init, random_string, read_json, CommandFailure
-    
 
+from modules.economy import Economy
+
+from utils.errors import CommandFailure
+from utils.database import Database
+from utils.utils import rchop, lchop, encode_dict, parse_args
+from utils.utils import get_or_init, random_string, read_json, CommandFailure
 
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -214,8 +215,6 @@ main_handlers = [
 
 for h in main_handlers:
     dispatcher.add_handler(h)
-    
-
     
 dispatcher.add_error_handler(error_callback)
 updater.start_polling()
