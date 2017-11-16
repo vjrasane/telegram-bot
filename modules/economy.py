@@ -305,7 +305,7 @@ class Economy():
         "final" : [
             val("source", depends=["currency"], funcs=[no(equals(get_variable("target")))]),
             val("amount", depends=["currency", "source", "_current_user"], 
-            funcs=[positive, at_most(sys.float_info.max), at_most(get_value(CURRENCY_OWNERS_PATH + ["<source>"], "balance"))])
+            funcs=[positive, at_most(sys.float_info.max), at_most(get_value(CURRENCY_OWNERS_PATH + ["{source}"], "balance"))])
         ]
     }
     _transfer_grammar = CommandGrammar(ECONOMY_GRAMMARS_DIR + "transfer", _transfer_usage)
