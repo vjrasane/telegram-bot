@@ -1,17 +1,25 @@
 from telegram.ext import CommandHandler
 from enum import Enum
+from pprint import pprint
 
 from utils.validate import validate, val
-from utils.validate import positive, no, get_variable, auth
+from utils.validate import positive, no, get_variable
 from utils.validate import shorter, any_of, flag, equals, enum, exists, at_most, get_value
 
 from utils.errors import CommandFailure
 from utils.utils import is_flag_set, image_msg, get_single
 from utils.command_grammar import CommandGrammar
 from utils.constants import USER_NAME_LIMIT
+from utils.utils import replace_placeholders
+
+from modules.economy.resources import CREATE_CURRENCY_RES, DELETE_CURRENCY_RES, MODIFY_CURRENCY_RES
+from modules.economy.resources import OPEN_ACCOUNT_RES, BALANCE_RES
+
+from modules.economy.resources import CURRENCIES_PATH, CURRENCY_OWNERS_PATH
+
+from collections import Counter
 
 import sys
-import schedule
 
 OUTPUT_LIST_TOKEN = "* "
 
@@ -35,7 +43,6 @@ class Allowance(Enum):
     interest = 2
 
 class Economy():
-
     def __init__(self, config, callbacks):
         self.database = config["database"]
         self.images = config["images"]
@@ -43,6 +50,9 @@ class Economy():
         self.require = callbacks["permissions"]
         self.handlers = [ 
             CommandHandler("create_currency", self._create_currency, pass_args=True),
+            CommandHandler("delete_currency", self._delete_currency, pass_args=True),
+            CommandHandler("update_currency", self._modify_currency, pass_args=True),
+            
             CommandHandler("open_account", self._open_account, pass_args=True),
             CommandHandler("close_account", self._close_account, pass_args=True),
             CommandHandler("balance", self._balance, pass_args=True),
@@ -51,39 +61,35 @@ class Economy():
             CommandHandler("schedule_allowance", self._schedule_allowance, pass_args=True)
         ]
     
-    _create_currency_usage = """
-        /create_currency <name> [-initial <amount>] [-sign <sign>]
-    """
-    _create_currency_grammar = CommandGrammar(ECONOMY_GRAMMARS_DIR + "create_currency", _create_currency_usage)
     def _create_currency(self, bot, update, args):
-        self._create_currency_grammar.parse(args)
+        params = CREATE_CURRENCY_RES.grammar.parse(args)
+        self.require(required=CREATE_CURRENCY_RES.permissions, user=update.message.from_user)
+        validate(params, CREATE_CURRENCY_RES.validators, self.database)
         
-        # data, non_data = parse_inputs(args, self._create_currency_schema)
-        # permissions = _global_currency_permissions(["create"])
+        self._write_currency_data(params)
+        self.respond(bot, update, "Created new currency '%s'" % params["currency"])
         
-        # self.require(required=permissions, user=update.message.from_user, password=non_data.get("master_password",None))
+    def _modify_currency(self, bot, update, args):
+        params = MODIFY_CURRENCY_RES.grammar.parse(args)
+        self.require(required=MODIFY_CURRENCY_RES.permissions, user=update.message.from_user)
+        validate(params, MODIFY_CURRENCY_RES.validators, self.database)
+        
+        self._write_currency_data(params)
+        self.respond(bot, update, "Updated currency '%s'" % params["currency"])
+        
+    def _write_currency_data(self, params):
+        params["initial"] = params["initial"] if params["initial"] != None else 0.0
+        params["sign"] = params["initial"] if params["initial"] != None else ""
+        self.database.create(CURRENCIES_PATH + [ params["currency"], "info" ], params)
 
-        # currency_name = data["name"]
-        # currencies_group = self.database.group("economy").group("currencies")
+    def _delete_currency(self, bot, update, args):
+        params = DELETE_CURRENCY_RES.grammar.parse(args)
+        self.require(required=DELETE_CURRENCY_RES.permissions, user=update.message.from_user)
+        validate(params, DELETE_CURRENCY_RES.validators, self.database)
         
-        # if currency_name in currencies_group.tables and not is_flag_set("override", non_data):
-            # raise CommandFailure("Currency '%s' already exists." % currency_name)
-        
-        # currency_group = currencies_group.group(currency_name)
-        # currency_info_table = currency_group.table("info")
-        # currency_info_table.write(data)
-        
-        # self.respond(bot, update, "Created new currency '%s'" % currency_name)
-    
-    # _schedule_allowance_schema = Schema([
-        # param("currency", position=0, validators=[not_empty]),
-        # param("amount", position=1, validators=[number, positive], converter=to_float),
-        # arg("type", required=False, validators=[enum(Allowance)], converter=to_enum(Allowance))
-        # arg("every", positions=[-1, -2], arity=2, prefix="disallowed", 
-            # validators=[not_empty, any_of(enum(Weekday), sequence(all_of(number, positive), enum(TimeUnit)))]),
-        # arg("at", positions=[-2, -1], prefix="disallowed", required=False,
-            # validators=[time])
-    # ])
+        self.database.delete(CURRENCIES_PATH + [ params["currency"] ])
+        self.respond(bot, update, "Deleted currency '%s'" % params["currency"])
+
     _schedule_allowance_usage = """
         /schedule_allowance <currency> <amount> every <interval> [-type <type>] 
     """
@@ -158,38 +164,22 @@ class Economy():
     """
     _open_account_grammar = CommandGrammar(ECONOMY_GRAMMARS_DIR + "open_account", _open_account_usage)
     def _open_account(self, bot, update, args):
-        self._open_account_grammar.parse(args)
-        # _, non_data = parse_inputs(args, self._open_account_schema)
-        # currency_name = non_data["currency"]
+        params = OPEN_ACCOUNT_RES.grammar.parse(args)
+        if params.get("user",None) == None:
+            params["user"] = update.message.from_user.username
+            self.require(required=OPEN_ACCOUNT_RES.permissions["common"], params=params, user=update.message.from_user)
+        else:
+            self.require(required=OPEN_ACCOUNT_RES.permissions["manage"], params=params, user=update.message.from_user)
         
-        # username = update.message.from_user.username
-        # if "user" in non_data:
-            # permissions = _currency_permissions(currency_name, ["manage"])
-            # self.require(required=permissions, user=update.message.from_user)
-            # username = non_data["user"]
-            
-        # currencies_group = self.database.group("economy").group("currencies")
+        validate(params, OPEN_ACCOUNT_RES.validators, self.database)
+
+        data = self.database.get_data(CURRENCIES_PATH + [params["currency"], "info"])
+        balance = data.get("initial", 0.0) or 0.0
+        sign = data.get("sign", "")
         
-        # if currency_name not in currencies_group.tables:
-            # raise CommandFailure("Currency '%s' does not exist." % currency_name)
-            
-        # currency_group = currencies_group.group(currency_name)
-        # currency_info_table = currency_group.table("info")
-        # currency_data = currency_info_table.read()
-        
-        # currency_owners_group = currency_group.group("owners")
-                
-        # if username in currency_owners_group.tables:
-            # raise CommandFailure("User %s already has %s account." % (username, currency_name))
-            
-        # user_owner_table = currency_owners_group.table(username)
-        # balance = currency_data.get("initial", 0)
-        # sign = currency_data.get("sign", "")
-        
-        # user_owner_data = { "balance" : balance }
-        # user_owner_table.write(user_owner_data)
-        
-        # self.respond(bot, update, "Created new %s account for user %s with balance: %s %s%s" % (currency_name, username, balance, sign.decode('utf-8'), image_msg("open_account", self.images)))
+        user_owner_data = { "balance" : balance }
+        self.database.create(replace_placeholders(CURRENCY_DATA_PATH, params), user_owner_data)
+        self.respond(bot, update, "Created new %s account for user %s with balance: %s %s%s" % (params["currency"], params["user"], balance, sign.decode('utf-8'), image_msg("open_account", self.images)))
 
     # _close_account_schema = Schema([
         # arg("user", required=False, validators=[not_empty]),
@@ -222,74 +212,40 @@ class Economy():
         # currency_owners_group.drop(username)
         self.respond(bot, update, "Closed %s's %s account.%s" % (username, currency_name, image_msg("close_account", self.images)))
     
-    # _balance_schema = Schema([
-        # arg("user", required=False, validators=[not_empty]),
-        # param("currency", required=False, position=0, validators=[not_empty])
-    # ])
-    _balance_usage = """
-        /balance [<currency>] [-user <user>]
-    """
-    _balance_grammar = CommandGrammar(ECONOMY_GRAMMARS_DIR + "balance", _balance_usage)
     def _balance(self, bot, update, args):
-        self._balance_grammar.parse(args)
-        # _, non_data = parse_inputs(args, self._balance_schema)
-
-        # current_user = update.message.from_user
-        # target_username = non_data.get("user", current_user.username)
-            
-        # currency_name = non_data.get("currency", None)
-        # balances = []
-        # if currency_name:
-            # balances = self._get_currency_balance(currency_name, target_username, current_user)
-        # else:
-            # balances = self._get_all_balances(target_username, current_user)
+        params = BALANCE_RES.grammar.parse(args)
+        if params.get("user", None) == None:
+            params["user"] = update.message.from_user.username
+            self.require(required=BALANCE_RES.permissions["common"], params=params, user=update.message.from_user)
+        else:
+            self.require(required=BALANCE_RES.permissions["manage"], params=params, user=update.message.from_user)
         
-        # if len(balances) > 0:
-            # balance_string = "\n".join([ OUTPUT_LIST_TOKEN + "%s %s" % (b, c) for c, b in balances.iteritems()])
-            # self.respond(bot, update, "User %s's balances:\n%s" % (target_username, balance_string))
-        # else:
-            # self.respond(bot, update, "User %s does not have any open accounts." % target_username)
+        validate(params, BALANCE_RES.validators, self.database)
+        
+        if params.get("currency", None) != None:
+            balances = self._get_currency_balance(params["currency"], params["user"])
+        else:
+            balances = self._get_all_balances(params["user"])
+        
+        if len(balances) > 0:
+            balance_string = "\n".join([ OUTPUT_LIST_TOKEN + "%s %s" % (b, c) for c, b in balances.iteritems()])
+            self.respond(bot, update, "User %s's balances:\n%s" % (target_username, balance_string))
+        else:
+            self.respond(bot, update, "User %s does not have any open accounts." % target_username)
     
-    def _get_all_balances(self, target_username, current_user):
-        if target_username != current_user.username:
-            permissions = _global_currency_permissions(["manage", "inspect"])
-            self.require(required=permissions, user=current_user)
-
+    def _get_all_balances(self, user):
         balances = {}
         currencies_group = self.database.group("economy").group("currencies")
-        for c in currencies_group.tables:
-            currency_group = currencies_group.group(c)
-            
-            currency_owners_group = currency_group.group("owners")
-            if target_username in currency_owners_group.tables:
-                user_owner_data = currency_owners_group.table(target_username).read()
-                balance = user_owner_data.get("balance", 0)
-                
-                currency_data = currency_group.table("info").read()
-                sign = currency_data.get("sign","").decode('utf-8')
+        for name, group in currencies_group.tables.iteritems():
+            balance = group.get_value(["owners", user], "balance")
+            if balance != None:
+                sign = group.get_value(["info"], "sign").decode('utf-8')
                 balances[c] = "%s%s" % (balance, sign)
         return balances
     
-    def _get_currency_balance(self, currency, target_username, current_user):
-        if target_username != current_user.username:
-            permissions = _currency_permissions(currency,["manage", "inspect"])
-            self.require(required=permissions, user=current_user)
-
-        currencies_group = self.database.group("economy").group("currencies")
-        if not currency in currencies_group.tables:
-            raise CommandFailure("Currency '%s' does not exist." % currency)
-        
-        currency_group = currencies_group.group(currency)
-        currency_owners_group = currency_group.group("owners")
-        
-        if not target_username in currency_owners_group.tables:
-            raise CommandFailure("User %s does not have %s account." % (target_username, currency))
-
-        user_owner_data = currency_owners_group.table(target_username).read()
-        balance = user_owner_data.get("balance", 0)
-        
-        currency_data = currency_group.table("info").read()
-        sign = currency_data.get("sign","").decode('utf-8')
+    def _get_currency_balance(self, currency, user):
+        balance = self.database.get_value(CURRENCIES_PATH + ["owners", user], "balance")
+        sign = self.database.get_value(CURRENCIES_PATH + ["info"], "sign").decode('utf-8')
         return { currency : "%s%s" % (balance, sign) }
     
     _transfer_usage = """
@@ -300,7 +256,7 @@ class Economy():
         "initial" : [
             val("currency", funcs=[shorter(CURRENCY_NAME_LIMIT), exists(CURRENCIES_PATH)]),
             val("target", depends=["currency"], funcs=CURRENCY_OWNER_VALIDATORS),
-            val("source", depends=["currency"], funcs=CURRENCY_OWNER_VALIDATORS + [auth(_transfer_permissions)])
+            val("source", depends=["currency"], funcs=CURRENCY_OWNER_VALIDATORS)
         ],
         "final" : [
             val("source", depends=["currency"], funcs=[no(equals(get_variable("target")))]),
@@ -310,12 +266,17 @@ class Economy():
     }
     _transfer_grammar = CommandGrammar(ECONOMY_GRAMMARS_DIR + "transfer", _transfer_usage)
     def _transfer(self, bot, update, args):
-        params = self._transfer_grammar.parse(args)
+        params = self._transfer_grammar.parse(args)       
         
         validate(params, self._transfer_validators["initial"], self.database)
         # Override source if it wasn't defined
         if params.get("source", None) == None:
             params["source"] = update.message.from_user.username
+        else:
+            # If transfering from another user, require currency management permissions
+            self.require(required=replace_placeholders(_transfer_permissions, params), user=update.message.from_user)
+        
+        # Handle final validation after we can be sure the source has been set
         validate(params, self._transfer_validators["final"], self.database)
         
         # _, non_data = parse_inputs(args, self._transfer_schema)

@@ -1,3 +1,7 @@
 Balance:
-    currency=ID ("-user" user=ID)?
+    currency?=Identifier ("-user" user=Identifier)?
+;
+
+Identifier:
+    ID|STRING
 ;

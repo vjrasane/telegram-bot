@@ -9,6 +9,7 @@ class Group():
         pass
         
     def exists(self, path):
+        print path
         if len(path) == 0:
             return True
         if path[0] in self.tables:
@@ -17,12 +18,13 @@ class Group():
         
 
 class Table(Group):
-    def __init__(self, name, parent=None):
+    def __init__(self, name, parent=None, data=None):
         self.name = name if name.endswith(TABLE_SUFFIX) else name + TABLE_SUFFIX
         self.parent = parent
-        if not os.path.exists(self.name):
-            with open(self.name, 'w') as f:
-                f.write("{}")
+        if data:
+            self.write(data)
+        elif not os.path.exists(self.name):
+            self.write("{}")
 
     def read(self):
         with open(self.name) as df:
@@ -38,9 +40,13 @@ class Table(Group):
     def get_value(self, path, field):
         if len(path) > 0:
             return None
-        value = self.read().get(field, None)
-        print (path, field, value)
-        return value
+        return self.read().get(field, None)
+    
+    def get_data(self, path):
+        if len(path) > 0:
+            return None
+        return self.read()
+       
 
 class Database(Group):
     def __init__(self, name, parent=None):
@@ -90,3 +96,22 @@ class Database(Group):
         if len(path) == 0 or not path[0] in self.tables:
             return None
         return self.tables[path[0]].get_value(path[1:], field)
+        
+    def get_data(self, path):
+        if len(path) == 0 or not path[0] in self.tables:
+            return None
+        return self.tables[path[0]].get_data(path[1:])
+        
+    def create(self, path, data):
+        if len(path) == 1:
+            self.tables[path[0]] = Table(self._path_to(path[0]), self, data)
+        else:
+            if not path[0] in self.tables:
+                self.tables[path[0]] = Database(self._path_to(path[0]), self)
+            self.tables[path[0]].create(path[1:], data)
+    
+    def delete(self, path):
+        if len(path) == 1:
+            self.drop(path[0])
+        else:
+            self.tables[path[0]].delete(path[1:])

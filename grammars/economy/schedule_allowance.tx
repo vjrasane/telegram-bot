@@ -1,3 +1,7 @@
 Schedule:
-    currency=ID amount=FLOAT "every" interval_num?=INT interval=ID ("-type" type=ID)?
+    currency=Identifier amount=FLOAT 'every' interval_num?=INT interval=ID ('-type' type=ID)?
+;
+
+Identifier:
+    ID|STRING
 ;

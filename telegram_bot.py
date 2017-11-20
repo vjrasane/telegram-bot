@@ -15,6 +15,7 @@ from modules.economy import Economy
 
 from utils.errors import CommandFailure
 from utils.database import Database
+from utils.utils import replace_placeholders
 from utils.utils import rchop, lchop, encode_dict, parse_args
 from utils.utils import get_or_init, random_string, read_json, CommandFailure
 
@@ -61,11 +62,12 @@ def _use_master_password( password ):
         return True
     return False
         
-def _require_permissions(user, required, password=None):
+def _require_permissions(required, user, params=None):
     username = user.username
     user_id = user.id
-    
-    if password != None and _use_master_password(password):
+    params = params or {}
+    required = replace_placeholders(required, params)
+    if "password" in params and _use_master_password(params["password"]):
         return
     
     data, table = _get_user_access_data(username)

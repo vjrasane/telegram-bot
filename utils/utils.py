@@ -7,6 +7,15 @@ from errors import CommandFailure
 current_milli_time = lambda : int(round(time.time() * 1000))
 random_string = lambda N : ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(N))
 
+def replace_placeholders(strings, values):
+    replaced = []
+    try:
+        for s in strings:
+            replaced.append(s.format(**values))
+    except KeyError as e:
+        raise CommandFailure("No replacement for placeholder %s" % e)
+    return replaced
+
 def rchop(string, sub):
     return string[:-len(sub)] if string.endswith(sub) else string
 

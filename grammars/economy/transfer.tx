@@ -1,3 +1,7 @@
 Transfer:
-    amount=FLOAT currency=ID (('to' target=ID) ('from' source=ID)?)#
+    amount=FLOAT currency=Identifier (('to' target=Identifier) ('from' source=Identifier)?)#
+;
+
+Identifier:
+    ID|STRING
 ;

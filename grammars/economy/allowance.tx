@@ -1,3 +1,7 @@
 Allowance:
-    currency=ID amount=FLOAT ("-type" type=ID)?
+    currency=Identifier amount=FLOAT ("-type" type=Identifier)?
+;
+
+Identifier:
+    ID|STRING
 ;

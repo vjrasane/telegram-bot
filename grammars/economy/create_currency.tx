@@ -1,3 +1,7 @@
-Currency:
-    currency=ID ( ('-initial' initial=FLOAT)? ('-sign' sign=ID)? )#
+Create:
+    currency=Identifier (('-initial' initial=FLOAT)? ('-sign' sign=Identifier)?)#
+;
+
+Identifier:
+    ID|STRING
 ;

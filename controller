@@ -1,7 +1,7 @@
 #!/bin/bash
 
 op="$1"
-module="${2:-obliterator_bot.py}"
+module="${2:-telegram_bot.py}"
 pid_file="${module%.*}.pid"
 
 [ -n "$op" ] || { echo "No operation given"; exit 1; }

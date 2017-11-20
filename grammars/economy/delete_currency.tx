@@ -1,0 +1,7 @@
+Delete:
+    currency=Identifier
+;
+
+Identifier:
+    ID|STRING
+;

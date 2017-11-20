@@ -1,8 +1,10 @@
 import math
 import validators
 import re
+import sys
 from utils import parse_args, remove_indexes
 from utils import lchop, rchop
+from utils import replace_placeholders
 from errors import CommandFailure
 
 # ========= HELPERS =========
@@ -56,24 +58,17 @@ def _equals(param, eq, validator=None):
     
 def _exists(path, param, validator):
     db_path  = validator.replace_placeholders(path)
+    print (db_path, param)
     exists = validator.database.exists(db_path + [param])
+    print exists
     if not exists:
         return False, "'%s' not found in database" % param
-    return True, None
+    return True, "'%s' exists in database" % param
     
 def _not(tuple):
     return not tuple[0], tuple[1]
     
-def _auth(param, permissions, validator):
-    perms = validator.replace_placeholders(permissions)
-    print perms
-    return True, None
-    
-
 # ========= VALIDATORS =========
-
-def auth(permissions):
-    return lambda p, v=None : _auth(p, permissions, v)
 
 def no(func):
     return lambda p, v=None : _not(func(p,v))
@@ -89,6 +84,9 @@ def shorter(length):
     
 def any_of(*funcs):
     return lambda p, v=None : _any_of(p, v, list(funcs))
+    
+def under_max(param, validator=None):
+    return at_most(sys.float_info.max)(param, validator)
     
 def number(param, validator=None):
     if is_number(param):
@@ -180,11 +178,14 @@ def is_empty(value):
 
 def validate(params, validators, database=None):
     issues = {}
+    success = []
     for v in validators:
-        if len([d for d in v.depends if d in issues]) == 0:
+        if len([d for d in v.depends if d not in success]) == 0:
             valid, reason = v.validate(params, database)
             if not valid:
                 issues[v.variable] = reason
+            else:
+                success.append(v.variable)
 
     if len(issues) > 0:
         raise CommandFailure("Invalid usage:\n%s" % _format_issues(issues))    
@@ -213,13 +214,7 @@ class Validator():
         return True, None
         
     def replace_placeholders(self, strings):
-        replaced = []
-        try:
-            for s in strings:
-                replaced.append(s.format(**self.params))
-        except KeyError as e:
-            raise CommandFailure("No replacement for placeholder %s" % e)
-        return replaced
+        return replace_placeholders(strings, self.params)
 
 # ======== PRIVATE ========
 
