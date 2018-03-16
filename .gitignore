@@ -2,3 +2,5 @@
 *.tab
 *.password
 *.pid
+*.password
+*.pid
