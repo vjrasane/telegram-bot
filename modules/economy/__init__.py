@@ -216,9 +216,12 @@ class Economy():
         params = BALANCE_RES.grammar.parse(args)
         if params.get("user", None) == None:
             params["user"] = update.message.from_user.username
-            self.require(required=BALANCE_RES.permissions["common"], params=params, user=update.message.from_user)
+            if params.get("currency", None) != None:
+                self.require(required=BALANCE_RES.permissions["common"], params=params, user=update.message.from_user)
         else:
             self.require(required=BALANCE_RES.permissions["manage"], params=params, user=update.message.from_user)
+        
+        
         
         validate(params, BALANCE_RES.validators, self.database)
         
