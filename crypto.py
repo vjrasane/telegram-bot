@@ -62,14 +62,13 @@ class Cipher():
         return trans
         
 class VigenereCipher(Cipher):
-      
     def _transpose_text(self, text, direction):
         key_index = 0
         transposed = []
         for i in range(len(text)):
             char = text[i]
             if char.lower() in self.alphabet:
-                char = self.transpose(char, lambda n : n + direction * self.alphabet.index(key[key_index]))
+                char = self.transpose(char, lambda n : n + direction * self.alphabet.index(key[key_index].lower()))
                 key_index = (key_index + 1) % len(key)
             transposed.append(char)
         return ''.join(transposed)
