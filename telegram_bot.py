@@ -182,41 +182,95 @@ def error_callback(bot, update, error):
         raise error
     except CommandFailure as f:
         _send_message(bot, update, f.message)
+        
 
+# def configure_client():
+    # global BOT_ID
+    # global BOT_NAME
+    # global SLACK_CLIENT
+    # global SLACK_BOT_TOKEN
+    # with open(PLATFORM_CONFIG_FILE) as platform_conf_file:
+        # platform_conf = json.load(platform_conf_file, encoding='utf-8', object_hook=cu.encode_dict)
+        # try:
+            # BOT_NAME = platform_conf['name']
+            # SLACK_BOT_TOKEN = platform_conf['token']
+            # SLACK_CLIENT = SlackClient(SLACK_BOT_TOKEN)
+            # BOT_ID = get_bot_id(SLACK_BOT_TOKEN)
+        # except:
+            # logger.error(MAIN_MODULE_NAME, "Error occurred when configuring bot client. Cause: %s" % traceback.format_exc())
+            # sys.exit()
+    # logger.log(MAIN_MODULE_NAME, "Loaded configuration. BOT_ID='%s', BOT_NAME='%s', SLACK_BOT_TOKEN='%s'" % (BOT_ID, BOT_NAME, SLACK_BOT_TOKEN))
+
+# # Deep reload, reload all imported modules as well
+# def dreload( module, depth=1 ):
+    # reload(module)
+    # if depth > 0:
+        # for attribute_name in dir(module):
+            # attribute = getattr(module, attribute_name)
+            # if type(attribute) is ModuleType:
+                # dreload(attribute, depth-1)
+
+# def load_plugins():
+    # global PLUGINS
+    # # Clear previous plugins
+    # del PLUGINS[:]
+    # COMMANDS_DICT.clear()
+    # loaded_plugins = []
+    # with open(PLATFORM_CONFIG_FILE) as platform_conf_file:
+        # platform_conf = json.load(platform_conf_file, encoding='utf-8', object_hook=cu.encode_dict)
+        # for plugin in platform_conf["plugins"]:
+            # try:
+                # plugin_module = __import__(plugin["module"], globals(), locals(), plugin["classes"], -1)
+                # dreload(plugin_module)
+                # for class_name in plugin["classes"]:
+                    # try:
+                        # clazz = getattr(plugin_module, class_name)
+                        # plugin_object = clazz(COMMANDS_DICT)
+                        # loaded_plugins.append(class_name)
+                        # PLUGINS.append(plugin_object)
+                    # except:
+                        # logger.error(MAIN_MODULE_NAME, "Error occurred when loading class: %s. Cause: %s" % (class_name, traceback.format_exc()))
+            # except:
+                # logger.error(MAIN_MODULE_NAME, "Error occurred when loading plugin: %s. Cause: %s" % (plugin, traceback.format_exc()))
+    # logger.log(MAIN_MODULE_NAME, "Loaded plugins: %s" % platform_conf["plugins"])
+    # return loaded_plugins
+
+
+    
 config_file = ".config"
-images_file = "images.data"
+#images_file = "images.data"
 
 config = read_json(config_file)
 database = Database(config["database"])
 
-images = read_json(images_file)
+#images = read_json(images_file)
 
 _generate_master_password()
 
 updater = Updater(token=config["api_token"])
 dispatcher = updater.dispatcher
 
-module_config = { "database" : database, "images" : images }
+module_config = { "database" : database }#, "images" : images }
 module_callbacks = { "respond" : _send_message, "permissions" : _require_permissions }
 
-modules = [ Economy(module_config, module_callbacks) ]
+modules = [ SecurityModule(module_config, module_callbacks) ]
 for m in modules:
     for h in m.handlers or []:
         dispatcher.add_handler(h)
         
 
 main_handlers = [
-    CommandHandler('start', start),
-    CommandHandler('authorize', authorize, pass_args=True),
-    CommandHandler('deauthorize', deauthorize, pass_args=True),
-    CommandHandler('permissions', permissions, pass_args=True),
-    CommandHandler('args', echo_args, pass_args=True),
+    # CommandHandler('start', start),
+    # CommandHandler('authorize', authorize, pass_args=True),
+    # CommandHandler('deauthorize', deauthorize, pass_args=True),
+    # CommandHandler('permissions', permissions, pass_args=True),
+    # CommandHandler('args', echo_args, pass_args=True),
     MessageHandler(Filters.text, echo),
     MessageHandler(Filters.command, unknown)
 ]
 
-for h in main_handlers:
-    dispatcher.add_handler(h)
+# for h in main_handlers:
+    # dispatcher.add_handler(h)
     
 dispatcher.add_error_handler(error_callback)
 updater.start_polling()

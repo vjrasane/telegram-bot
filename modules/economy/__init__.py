@@ -45,7 +45,7 @@ class Allowance(Enum):
 class Economy():
     def __init__(self, config, callbacks):
         self.database = config["database"]
-        self.images = config["images"]
+        # self.images = config["images"]
         self.respond = callbacks["respond"]
         self.require = callbacks["permissions"]
         self.handlers = [ 
