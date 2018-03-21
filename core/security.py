@@ -1,7 +1,12 @@
 import inspect
 from pprint import pprint
+from core.database import Database
+from utils.errors import CommandFailure
 
-class UnauthorizedException(Exception):
+class SecurityException(CommandFailure):
+    pass
+
+class UnauthorizedException(SecurityException):
     pass
 
 class User():
@@ -22,37 +27,58 @@ class Role():
  
 SECURITY = None     
 class SecurityService():
-    def __init__(self):
-        self.permissions = set()
-        self.clear()
-        
-    def clear(self):
-        self.current_user = None
-        
-    def add_permissions(self, permissions):
-        self.permissions.update(permissions)
-        
-    def is_authorized(self, permissions):
-        return self.current_user.is_authorized(permissions)
-    
-    @staticmethod
-    def user(user):
-        SecurityService.instance().current_user = user
-    
     @staticmethod
     def instance():
         global SECURITY
-        SECURITY = SecurityService() if not SECURITY else SECURITY
+        if SECURITY == None:
+            SECURITY = SecurityService(Database.instance())
         return SECURITY
         
+    def __init__(self, database):
+        self.current_user = None
+        self._init_database(database)
+        #self.permissions = set()
+        
+    def _init_database(self, database):
+        # Creates namespace and table files if they do not exist
+        self.database = database.namespace("security", True)
+        self.database.table("users", True)
+        self.database.table("roles", True)
+        
+    def add_permissions(self, permissions):
+        self.permissions.update(permissions)
+
+    @staticmethod
+    def is_authorized(permissions):
+        return SecurityService.instance().current_user.is_authorized(permissions)
+        
+    @staticmethod
+    def user(user):
+        username = user.username
+        db = SecurityService.instance().database
+        users = db['users'].data
+        # Fetch user roles
+        user_roles = []
+        if username in users:  
+            roles = db['roles'].data
+            user_roles = [ Role(r, *roles[r]['permissions']) for r in users[username]['roles'] ]
+            
+        SecurityService.instance().current_user = User(username, *user_roles)
+        print "Current user set %s" % username
+        
+    @staticmethod
+    def clear():
+        SecurityService.instance().current_user = None
+        print "Current user cleared"
+        
 def require_permissions(*permissions):
-    SecurityService.instance().add_permissions(permissions)
-    
     def decorator(orig):
         def func(*args, **kwargs):
-            if SecurityService.instance().is_authorized(permissions):
+            print "Call to '%s' requiring permissions: %s" % (orig.__name__, list(permissions))
+            if SecurityService.is_authorized(permissions):
+                print "User '%s' access granted" % SecurityService.instance().current_user.name
                 return orig(*args, **kwargs)
-            raise UnauthorizedException()
+            raise UnauthorizedException("Unauthorized. Required permissions: %s" % permissions)
         return func
     return decorator
 
