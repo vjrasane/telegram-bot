@@ -3,9 +3,7 @@ import textx as tx
 
 SYNTAX_DIRECTORY = "syntax"
 def syntax(filepath):
-    print filepath
     def decorator(orig):
-        print orig
         def func(*args, **kwargs):    
             syn = CommandSyntax("%s/%s" % (SYNTAX_DIRECTORY, filepath))
             
@@ -30,7 +28,8 @@ class CommandSyntax():
         string = " ".join(args).encode('utf-8')
         try:
             model = self.metamodel.model_from_str(string)
-            model_map = model.__dict__ # if isinstance(model, dict) else {}
+            print "'%s'" % model
+            model_map = model.__dict__ if model else {}
             [ model_map.pop(k) for k in model_map.keys() if k.startswith("_tx_") ]
             return model_map
         except tx.TextXSyntaxError as e:

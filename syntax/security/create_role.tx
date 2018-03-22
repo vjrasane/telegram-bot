@@ -1,0 +1,7 @@
+Create_Role:
+    role = String ('with' permissions += String)?
+;
+
+String:
+    /[^ ]+/
+;

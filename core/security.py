@@ -8,6 +8,18 @@ class SecurityException(CommandFailure):
 
 class UnauthorizedException(SecurityException):
     pass
+    
+def require_permissions(*permissions):
+    def decorator(orig):
+        def func(*args, **kwargs):
+            print "Call to '%s' requiring permissions: %s" % (orig.__name__, list(permissions))
+            if SecurityService.is_authorized(permissions):
+                print "Access granted to '%s' for user '%s'" % (orig.__name__, SecurityService.instance().current_user.name)
+                return orig(*args, **kwargs)
+            print "Access denied to '%s' for user '%s'" % (orig.__name__, SecurityService.instance().current_user.name)
+            raise UnauthorizedException("Unauthorized. Required permissions: %s" % permissions)
+        return func
+    return decorator
 
 class User():
     def __init__(self, name, *roles):
@@ -69,19 +81,4 @@ class SecurityService():
     @staticmethod
     def clear():
         SecurityService.instance().current_user = None
-        print "Current user cleared"
-        
-def require_permissions(*permissions):
-    def decorator(orig):
-        print orig
-        def func(*args, **kwargs):
-            print "Call to '%s' requiring permissions: %s" % (orig.__name__, list(permissions))
-            if SecurityService.is_authorized(permissions):
-                print "Access granted to '%s' for user '%s'" % (orig.__name__, SecurityService.instance().current_user.name)
-                return orig(*args, **kwargs)
-            print "Access denied to '%s' for user '%s'" % (orig.__name__, SecurityService.instance().current_user.name)
-            raise UnauthorizedException("Unauthorized. Required permissions: %s" % permissions)
-        return func
-    return decorator
-
-    
+        print "Current user cleared" 

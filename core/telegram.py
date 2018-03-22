@@ -15,6 +15,14 @@ class TelegramService():
         self.bot = None
         self.update = None
         
+    @property
+    def username(self):
+        return self.update.message.from_user.username
+        
+    @staticmethod
+    def user():
+        return TelegramService.instance().update.message.from_user
+        
     @staticmethod
     def message(bot, update):
         inst = TelegramService.instance()
