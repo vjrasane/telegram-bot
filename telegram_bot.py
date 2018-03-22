@@ -11,7 +11,7 @@ import logging
 import time
 import shlex
 
-from modules.economy import Economy
+#from modules.economy import Economy
 
 from utils.errors import CommandFailure
 
@@ -253,17 +253,20 @@ _generate_master_password()
 updater = Updater(token=config["api_token"])
 dispatcher = updater.dispatcher
 
+from core.telegram import TelegramService
+dispatcher.add_handler(MessageHandler(Filters.command, lambda b, u : TelegramService.message(b, u)), group=0)
+
 from core.security import SecurityService
-dispatcher.add_handler(MessageHandler(Filters.command, lambda b, u, *a : SecurityService.user(u.message.from_user)), group=0)
+dispatcher.add_handler(MessageHandler(Filters.command, lambda b, u : SecurityService.user(u.message.from_user)), group=1)
 
 #module_config = { "database" : database }#, "images" : images }
-module_callbacks = { "respond" : _send_message }
+#module_callbacks = { "respond" : _send_message }
 
 from modules.security import SecurityModule
-modules = [ SecurityModule(module_callbacks) ]
+modules = [ SecurityModule() ]
 for m in modules:
-    for h in m.handlers or []:
-        dispatcher.add_handler(h, 1)
+    for c,f in m.commands.iteritems() or {}.iteritems():
+        dispatcher.add_handler(CommandHandler(c, lambda b,u,args : f[0](args), pass_args=f[1]), 8)
         
 
         
@@ -278,10 +281,10 @@ main_handlers = [
 ]
 
 for h in main_handlers:
-    dispatcher.add_handler(h, 3)
+    dispatcher.add_handler(h, 8)
 
-dispatcher.add_handler(MessageHandler(Filters.command, lambda b, u, *a : SecurityService.clear()), 10)
-
+dispatcher.add_handler(MessageHandler(Filters.command, lambda b, u : SecurityService.clear()), group=9)
+dispatcher.add_handler(MessageHandler(Filters.command, lambda b, u : TelegramService.clear()), group=10)
     
 dispatcher.add_error_handler(error_callback)
 updater.start_polling()

@@ -76,8 +76,9 @@ def require_permissions(*permissions):
         def func(*args, **kwargs):
             print "Call to '%s' requiring permissions: %s" % (orig.__name__, list(permissions))
             if SecurityService.is_authorized(permissions):
-                print "User '%s' access granted" % SecurityService.instance().current_user.name
+                print "Access granted to '%s' for user '%s'" % (orig.__name__, SecurityService.instance().current_user.name)
                 return orig(*args, **kwargs)
+            print "Access denied to '%s' for user '%s'" % (orig.__name__, SecurityService.instance().current_user.name)
             raise UnauthorizedException("Unauthorized. Required permissions: %s" % permissions)
         return func
     return decorator
