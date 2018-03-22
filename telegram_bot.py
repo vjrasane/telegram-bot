@@ -263,25 +263,35 @@ dispatcher.add_handler(MessageHandler(Filters.command, lambda b, u : SecuritySer
 #module_callbacks = { "respond" : _send_message }
 
 from modules.security import SecurityModule
-modules = [ SecurityModule() ]
-for m in modules:
-    for c,f in m.commands.iteritems() or {}.iteritems():
-        dispatcher.add_handler(CommandHandler(c, lambda b,u,args : f[0](args), pass_args=f[1]), 8)
+# modules = [ SecurityModule() ]
+# for m in modules:
+    # for c,f in m.commands.iteritems():
+        # function = f
+        # print (c,f)
         
+        # dispatcher.add_handler(CommandHandler(c, lambda b,u,args : f(b,u,args), pass_args=True), group=8)
+        
+m = SecurityModule()
+for c in m.commands:
+    print (c, m.commands[c])
+    dispatcher.add_handler(CommandHandler(c, lambda b,u,args : m.commands[c](b,u,args), pass_args=True), group=8)
+# dispatcher.add_handler(CommandHandler("test", lambda b,u,args : m.commands['test'](b,u,args), pass_args=True), group=8)
+# dispatcher.add_handler(CommandHandler("grant_role", lambda b,u,args : m.commands['grant_role'](b,u,args), pass_args=True), group=8)
+# dispatcher.add_handler(CommandHandler("authorize", lambda b,u,args : m.gommands['authorize'](b,u,args), pass_args=True), group=8)
 
         
-main_handlers = [
-    CommandHandler('start', start),
-    # CommandHandler('authorize', authorize, pass_args=True),
-    # CommandHandler('deauthorize', deauthorize, pass_args=True),
-    # CommandHandler('permissions', permissions, pass_args=True),
-    CommandHandler('args', echo_args, pass_args=True),
-    MessageHandler(Filters.text, echo),
-    MessageHandler(Filters.command, unknown)
-]
+# main_handlers = [
+    # CommandHandler('start', start),
+    # # CommandHandler('authorize', authorize, pass_args=True),
+    # # CommandHandler('deauthorize', deauthorize, pass_args=True),
+    # # CommandHandler('permissions', permissions, pass_args=True),
+    # CommandHandler('args', echo_args, pass_args=True),
+    # MessageHandler(Filters.text, echo),
+    # MessageHandler(Filters.command, unknown)
+# ]
 
-for h in main_handlers:
-    dispatcher.add_handler(h, 8)
+# for h in main_handlers:
+    # dispatcher.add_handler(h, 8)
 
 dispatcher.add_handler(MessageHandler(Filters.command, lambda b, u : SecurityService.clear()), group=9)
 dispatcher.add_handler(MessageHandler(Filters.command, lambda b, u : TelegramService.clear()), group=10)

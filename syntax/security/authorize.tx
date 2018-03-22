@@ -1,0 +1,7 @@
+Authorize:
+    role=Identifier 'with' permissions+=Identifier
+;
+
+Identifier:
+    ID|STRING
+;

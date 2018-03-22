@@ -3,9 +3,15 @@ import textx as tx
 
 SYNTAX_DIRECTORY = "syntax"
 def syntax(filepath):
+    print filepath
     def decorator(orig):
-        def func(*args, **kwargs):
+        print orig
+        def func(*args, **kwargs):    
             syn = CommandSyntax("%s/%s" % (SYNTAX_DIRECTORY, filepath))
+            
+            # Its possible to check whether 'orig' is a method with inspect.ismethod(), 
+            # but its unclear at this time whether non-method syntaxes are needed
+            
             object = args[0] # The calling object
             arguments = args[1] # Command arguments are placed second
             parsed = syn.parse(arguments)
@@ -28,6 +34,7 @@ class CommandSyntax():
             [ model_map.pop(k) for k in model_map.keys() if k.startswith("_tx_") ]
             return model_map
         except tx.TextXSyntaxError as e:
+            print e
             raise CommandFailure("Syntax error! Usage: " + (self.usage or "<unavailable>"))
         except Exception as e:
             raise CommandFailure("Invalid input: " + str(e))

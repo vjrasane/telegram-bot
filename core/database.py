@@ -89,6 +89,9 @@ class Table():
         with open(self.name) as df:
             return json.load(df, encoding='utf-8', object_hook=encode_dict)
             
+    def save(self):
+        self.write(self.data)
+            
     def write(self, data):
         with open(self.name, 'w') as df:
             json.dump(data, df, encoding='utf-8', indent=4)

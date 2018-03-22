@@ -61,7 +61,7 @@ class SecurityService():
         user_roles = []
         if username in users:  
             roles = db['roles'].data
-            user_roles = [ Role(r, *roles[r]['permissions']) for r in users[username]['roles'] ]
+            user_roles = [ Role(r, *roles[r]['permissions']) for r in users[username]['roles'] if r in roles ]
             
         SecurityService.instance().current_user = User(username, *user_roles)
         print "Current user set %s" % username
@@ -73,6 +73,7 @@ class SecurityService():
         
 def require_permissions(*permissions):
     def decorator(orig):
+        print orig
         def func(*args, **kwargs):
             print "Call to '%s' requiring permissions: %s" % (orig.__name__, list(permissions))
             if SecurityService.is_authorized(permissions):
