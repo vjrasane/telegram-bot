@@ -1,0 +1,7 @@
+Authorize:
+    role = String 'with' permissions += String
+;
+
+String:
+    //[^-][^ ]+/
+;

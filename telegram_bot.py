@@ -242,9 +242,9 @@ config_file = ".config"
 
 config = read_json(config_file)
 
+DATA_DIR = "data"
 from core.database import Database
-database = Database.initialize(config["database"])
-
+database = Database.initialize("%s/%s" % (DATA_DIR, config["database"]))
 
 #images = read_json(images_file)
 

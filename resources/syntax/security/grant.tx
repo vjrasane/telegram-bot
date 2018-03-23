@@ -1,0 +1,7 @@
+Grant:
+    roles+=Role 'to' user=Identifier
+;
+
+Identifier:
+    /[^-][^ ]+/
+;

@@ -1,0 +1,7 @@
+Revoke:
+    role=Identifier 'from' user=Identifier
+;
+
+Identifier:
+    /[^ ]+/
+;

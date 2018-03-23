@@ -6,6 +6,8 @@ from core.database import Database
 from core.telegram import TelegramService
 
 from utils.errors import CommandFailure
+
+import utils.string_utils as string_utils
     
 class SecurityModule():
     def __init__(self):
@@ -15,8 +17,9 @@ class SecurityModule():
             'create_role' : self._create_role,
             'deauthorize' : self._deauthorize,
             'roles' : self._roles,
+            'permissions' : self._permissions,
             'grant' : self._grant,
-            'revoke' : self._revoke,
+            'revoke' : self._revoke      
         }
         
     def _init_database(self, database):
@@ -25,9 +28,8 @@ class SecurityModule():
         self.database.table("users", True)
         self.database.table("roles", True)
         
-    #@usage("security/grant_role")
-    @syntax("security/authorize")
     @require_permissions("security.manage")
+    @syntax("security/authorize")
     def _authorize(self, args):
         role, permissions = args['role'], args['permissions']
         roles = self.database['roles']
@@ -35,13 +37,13 @@ class SecurityModule():
         if not role in roles.data:
             raise CommandFailure("No such role: '%s'" % role)
             
-        roles.data[role]['permissions'] = list(set(permissions + roles.data[role]['permissions']))
+        roles[role]['permissions'] = list(set(permissions + roles[role]['permissions']))
         roles.save()
         
         TelegramService.respond("Auhtorized role '%s' with permissions: %s" % (role, permissions))
-        
+    
+    @require_permissions("security.manage")    
     @syntax("security/create_role")
-    @require_permissions("security.manage")
     def _create_role(self, args):
         role, permissions = args['role'], args.get('permissions', [])
         roles = self.database['roles']
@@ -49,13 +51,13 @@ class SecurityModule():
         if role in roles.data:
             raise CommandFailure("Role '%s' already exists" % role)
             
-        roles.data[role] = { "permissions" : permissions }
+        roles[role] = { "permissions" : permissions }
         roles.save()
         
         TelegramService.respond("Created role '%s' with permissions: %s" % (role, permissions))
-        
+    
+    @require_permissions("security.manage")    
     @syntax("security/deauthorize")
-    @require_permissions("security.manage")
     def _deauthorize(self, args):
         role, permissions = args['role'], args.get('permissions', [])
         roles = self.database['roles']
@@ -63,56 +65,70 @@ class SecurityModule():
         if not role in roles.data:
             raise CommandFailure("No such role: '%s'" % role)
         
-        remove = [ p for p in permissions if p in roles.data[role]['permissions'] ]
+        remove = [ p for p in permissions if p in roles[role]['permissions'] ]
         if len(remove) > 0:
-            roles.data[role]['permissions'] = [ p for p in roles.data[role]['permissions'] if not p in remove ] 
+            roles[role]['permissions'] = [ p for p in roles[role]['permissions'] if not p in remove ] 
             roles.save()
             TelegramService.respond("Deauthorized role '%s' with permissions: %s" % (role, remove))
         else:
             TelegramService.respond("Role '%s' does not have any of permissions: %s" % (role, permissions))
-        
+    
+    @require_permissions("security.manage", "security.view")    
     @syntax("security/roles")
-    @require_permissions("security.manage", "security.view")
     def _roles(self, args):
-        user = args.get('user', TelegramService.user().username)
+        if not 'user' in args or args['user'] == None:
+            user = TelegramService.user().username
+        else:
+            user = args['user']
         users = self.database['users']
-        if not user in users.data or len(users.data[user]['roles']) == 0:
+        if not user in users.data or len(users[user]['roles']) == 0:
             TelegramService.respond("User '%s' has no assigned roles." % user)
         else:
-            TelegramService.respond("User '%s' has roles: %s" % (user, users.data[user]['roles']))
+            user_roles = users[user]['roles']
+            response = "User '%s' has roles:\n%s" % (user, string_utils.joinlines(user_roles, prefix=" * "))
+            if args.get('permissions', False):
+                permissions = set([ p for r, v in self.database['roles'].data.iteritems() if r in user_roles for p in v['permissions'] ])
+                response += "\nRole permissions:\n%s" % (string_utils.joinlines(permissions, prefix=" - "))
+            TelegramService.respond(response)
         
-    #@validate("security/grant_role")
-    
-    #@usage("security/grant_role")
-    @syntax("security/grant")
     @require_permissions("security.manage")
+    @syntax("security/grant")
     def _grant(self, args):
         user, role = args['user'], args['role']
         users = self.database['users']
         
         if not user in users.data:
-            users.data[user] = { "roles" : [] }
+            users[user] = { "roles" : [] }
         
-        if role in users.data[user]['roles']:
+        if role in users[user]['roles']:
             raise CommandFailure("User '%s' already has role '%s'" % (user, role))
-            
+        
         users.data[user]['roles'].append(role)
         users.save()
         
         TelegramService.respond("Granted role '%s' to user '%s'" % (role, user))
-        
+    
+    @require_permissions("security.manage")    
     @syntax("security/revoke")
-    @require_permissions("security.manage")
     def _revoke(self, args):
         user, role = args['user'], args['role']
         users = self.database['users']
         
-        if not user in users.data or not role in users.data[user]['roles']:
-            raise CommandFailure("User '%s' does not have role '%s'" % (role, user))
+        if not user in users.data or not role in users[user]['roles']:
+            raise CommandFailure("User '%s' does not have role '%s'" % (user, role))
             
-        users.data[user]['roles'] = [ r for r in users.data[user]['roles'] if r != role ] 
+        users[user]['roles'] = [ r for r in users[user]['roles'] if r != role ] 
         users.save()
         
         TelegramService.respond("Revoked role '%s' from user '%s'" % (role, user))
-
+    
+    @require_permissions("security.manage", "security.view")
+    @syntax("security/permissions")
+    def _permissions(self, args):
+        role = args['role']
+        roles = self.database['roles']
+        if not role in roles.data:
+            raise CommandFailure("Role '%s' does not exist" % role)
+        TelegramService.respond("Role '%s' permissions:\n%s" % (role, string_utils.joinlines([ p for p in roles[role]['permissions'] ], " - ")))
+        
         

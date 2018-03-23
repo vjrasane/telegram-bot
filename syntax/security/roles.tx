@@ -1,7 +1,0 @@
-Roles:
-    (user=String)?
-;
-
-String:
-    /[^ ]+/
-;

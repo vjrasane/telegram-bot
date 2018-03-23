@@ -3,5 +3,5 @@ Create_Role:
 ;
 
 String:
-    /[^ ]+/
+    /[^-][^ ]+/
 ;

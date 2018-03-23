@@ -1,0 +1,7 @@
+Permissions:
+    role=Identifier
+;
+
+Identifier:
+    /[^-][^ ]+/
+;

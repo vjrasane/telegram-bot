@@ -85,6 +85,12 @@ class Table():
             self.write("{}")
         self.data = self.read()
 
+    def __getitem__(self, key):
+        return self.data[key]
+    
+    def __setitem__(self, key, value):
+        self.data[key] = value
+    
     def read(self):
         with open(self.name) as df:
             return json.load(df, encoding='utf-8', object_hook=encode_dict)
