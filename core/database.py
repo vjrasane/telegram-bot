@@ -82,7 +82,7 @@ class Table():
         if data:
             self.write(data)
         elif not os.path.exists(self.name):
-            self.write("{}")
+            self.write({})
         self.data = self.read()
 
     def __getitem__(self, key):

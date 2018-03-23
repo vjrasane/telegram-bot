@@ -26,6 +26,7 @@ class SecurityModule():
         # Creates namespace and table files if they do not exist
         self.database = database.namespace("security", True)
         self.database.table("users", True)
+        self.database.table("channels", True)
         self.database.table("roles", True)
         
     @require_permissions("security.manage")
@@ -94,19 +95,34 @@ class SecurityModule():
     @require_permissions("security.manage")
     @syntax("security/grant")
     def _grant(self, args):
-        user, role = args['user'], args['role']
-        users = self.database['users']
+        role = args['role']
         
-        if not user in users.data:
-            users[user] = { "roles" : [] }
+        subject_base = { "roles" : [] }
+        if args.get('channel', False):
+            chat = TelegramService.instance().chat
+            if chat.type == 'private':
+                raise CommandFailure("Cannot grant role to private chat")
+                
+            subject = str(chat.id)
+            subject_name = chat.title
+            subject_base['title'] = subject_name
+        else:
+            subject = subject_name = args['user']
         
-        if role in users[user]['roles']:
-            raise CommandFailure("User '%s' already has role '%s'" % (user, role))
+        subject_term = 'channel' if args.get('channel', False) else 'user'
+        subject_plural = subject_term + "s"
+            
+        subjects = self.database[subject_plural]
+        if not subject in subjects.data:
+            subjects[subject] = subject_base
         
-        users.data[user]['roles'].append(role)
-        users.save()
+        if role in subjects[subject]['roles']:
+            raise CommandFailure("%s '%s' already has role '%s'" % (subject_term.capitalize(), subject_name, role))
         
-        TelegramService.respond("Granted role '%s' to user '%s'" % (role, user))
+        subjects[subject]['roles'].append(role)
+        subjects.save()
+        
+        TelegramService.respond("Granted role '%s' to %s '%s'" % (role, subject_term, subject_name))
     
     @require_permissions("security.manage")    
     @syntax("security/revoke")

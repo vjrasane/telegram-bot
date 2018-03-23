@@ -1,5 +1,5 @@
 Grant:
-    roles+=Role 'to' user=Identifier
+    role=Identifier (('to' user=Identifier) | (channel?='-channel'))
 ;
 
 Identifier:

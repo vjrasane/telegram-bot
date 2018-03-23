@@ -1,4 +1,5 @@
-
+import pprint
+import json
 class TelegramException(Exception):
     pass
 
@@ -19,13 +20,31 @@ class TelegramService():
     def username(self):
         return self.update.message.from_user.username
         
+    # @property
+    # def chat_title(self):
+        # return self.chat.title
+        
+    # @property
+    # def chat_id(self):
+        # return self.chat.chat_id
+        
+    @property
+    def chat(self):
+        return self.update.message.chat
+        
     @staticmethod
     def user():
-        return TelegramService.instance().update.message.from_user
+        return TelegramService.instance().username
+        
+    # @staticmethod
+    # def chat():
+        # inst = TelegramService.instance()
+        # return { "id" : inst.chat_id, "title" : inst.chat_title, "type" : inst.chat.type }
         
     @staticmethod
     def message(bot, update):
         inst = TelegramService.instance()
+        pprint.pprint(update.message.chat.__dict__)
         inst.bot = bot
         inst.update = update
         print "Message info set"
@@ -40,5 +59,5 @@ class TelegramService():
     @staticmethod
     def respond(message):
         inst = TelegramService.instance()
-        inst.bot.send_message(chat_id=inst.update.message.chat_id, text=message)
+        inst.bot.send_message(chat_id=inst.chat.id, text=message)
         
