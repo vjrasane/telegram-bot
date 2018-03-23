@@ -17,11 +17,11 @@ def require_permissions(*permissions):
                 print "Access granted to '%s' for user '%s'" % (orig.__name__, SecurityService.instance().current_user.name)
                 return orig(*args, **kwargs)
             print "Access denied to '%s' for user '%s'" % (orig.__name__, SecurityService.instance().current_user.name)
-            raise UnauthorizedException("Unauthorized. Required permissions: %s" % permissions)
+            raise UnauthorizedException("Unauthorized. Required permissions: %s" % list(permissions))
         return func
     return decorator
 
-class User():
+class Subject():
     def __init__(self, name, *roles):
         self.name = name
         self.roles = set(roles)
@@ -48,6 +48,7 @@ class SecurityService():
         
     def __init__(self, database):
         self.current_user = None
+        self.current_channel = None
         self._init_database(database)
         #self.permissions = set()
         
@@ -55,6 +56,7 @@ class SecurityService():
         # Creates namespace and table files if they do not exist
         self.database = database.namespace("security", True)
         self.database.table("users", True)
+        self.database.table("channels", True)
         self.database.table("roles", True)
         
     def add_permissions(self, permissions):
@@ -62,12 +64,18 @@ class SecurityService():
 
     @staticmethod
     def is_authorized(permissions):
-        return SecurityService.instance().current_user.is_authorized(permissions)
+        inst = SecurityService.instance()
+        return inst.current_channel.is_authorized(permissions) or inst.current_user.is_authorized(permissions)
         
     @staticmethod
-    def user(user):
+    def current(message):
+        inst = SecurityService.instance()
+        inst.user(message.from_user)
+        inst.channel(message.chat)
+        
+    def user(self, user):
         username = user.username
-        db = SecurityService.instance().database
+        db = self.database
         users = db['users'].data
         # Fetch user roles
         user_roles = []
@@ -75,10 +83,26 @@ class SecurityService():
             roles = db['roles'].data
             user_roles = [ Role(r, *roles[r]['permissions']) for r in users[username]['roles'] if r in roles ]
             
-        SecurityService.instance().current_user = User(username, *user_roles)
-        print "Current user set %s" % username
+        self.current_user = Subject(username, *user_roles)
+        print "Current user set '%s'" % username
+        
+    def channel(self, chat):
+        db = self.database
+        channels = db['channels'].data
+        chat_id = str(chat.id)
+        
+        channel_roles = []
+        if chat_id in channels:
+            roles = db['roles'].data
+            channel_roles = [ Role(r, *roles[r]['permissions']) for r in channels[chat_id]['roles'] if r in roles ]
+
+        channel_name = chat.title or "<undefined>"
+        self.current_channel = Subject(channel_name, *channel_roles)
+        print "Current channel set '%s'" % channel_name
         
     @staticmethod
     def clear():
-        SecurityService.instance().current_user = None
-        print "Current user cleared" 
+        inst = SecurityService.instance()
+        inst.current_user = None
+        inst.current_channel = None
+        print "Current user/channel cleared" 

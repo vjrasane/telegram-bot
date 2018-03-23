@@ -78,7 +78,7 @@ class SecurityModule():
     @syntax("security/roles")
     def _roles(self, args):
         if not 'user' in args or args['user'] == None:
-            user = TelegramService.user().username
+            user = TelegramService.current_user().username
         else:
             user = args['user']
         users = self.database['users']

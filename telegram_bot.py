@@ -257,7 +257,7 @@ from core.telegram import TelegramService
 dispatcher.add_handler(MessageHandler(Filters.command, lambda b, u : TelegramService.message(b, u)), group=0)
 
 from core.security import SecurityService
-dispatcher.add_handler(MessageHandler(Filters.command, lambda b, u : SecurityService.user(u.message.from_user)), group=1)
+dispatcher.add_handler(MessageHandler(Filters.command, lambda b, u : SecurityService.current(u.message)), group=1)
 
 #module_config = { "database" : database }#, "images" : images }
 #module_callbacks = { "respond" : _send_message }

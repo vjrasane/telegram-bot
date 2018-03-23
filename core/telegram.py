@@ -18,8 +18,11 @@ class TelegramService():
         
     @property
     def username(self):
-        return self.update.message.from_user.username
+        return self.user.username
         
+    @property
+    def user(self):
+        return self.update.message.from_user
     # @property
     # def chat_title(self):
         # return self.chat.title
@@ -33,8 +36,8 @@ class TelegramService():
         return self.update.message.chat
         
     @staticmethod
-    def user():
-        return TelegramService.instance().username
+    def current_user():
+        return TelegramService.instance().user
         
     # @staticmethod
     # def chat():
